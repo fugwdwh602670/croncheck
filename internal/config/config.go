@@ -1,70 +1,69 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Job defines a single monitored cron job.
+// Job represents a single monitored cron job entry.
 type Job struct {
-	Name     string        `yaml:"name"`
-	Schedule string        `yaml:"schedule"`
-	Grace    time.Duration `yaml:"grace"`
-	Alert    AlertConfig   `yaml:"alert"`
-}
-
-// AlertConfig holds per-job alert settings.
-type AlertConfig struct {
-	Email   string `yaml:"email"`
-	Webhook string `yaml:"webhook"`
+	Name     string `yaml:"name"`
+	Schedule string `yaml:"schedule"`
+	Alert    string `yaml:"alert,omitempty"`
 }
 
 // Config is the top-level configuration structure.
 type Config struct {
-	ListenAddr string      `yaml:"listen_addr"`
-	LogLevel   string      `yaml:"log_level"`
-	Jobs       []Job       `yaml:"jobs"`
-	Alert      AlertConfig `yaml:"alert"`
+	Jobs           []Job  `yaml:"jobs"`
+	AlertEmail     string `yaml:"alert_email,omitempty"`
+	SMTPHost       string `yaml:"smtp_host,omitempty"`
+	SMTPPort       int    `yaml:"smtp_port,omitempty"`
+	CheckIntervalS int    `yaml:"check_interval_seconds,omitempty"`
 }
 
-// Load reads and parses a YAML config file from the given path.
+// Load reads and validates a YAML config file at the given path.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading config file: %w", err)
+		return nil, fmt.Errorf("reading config: %w", err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config file: %w", err)
+		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 
-	if err := cfg.validate(); err != nil {
-		return nil, fmt.Errorf("invalid config: %w", err)
+	if err := validate(&cfg); err != nil {
+		return nil, err
+	}
+
+	if cfg.CheckIntervalS == 0 {
+		cfg.CheckIntervalS = 60
 	}
 
 	return &cfg, nil
 }
 
-func (c *Config) validate() error {
-	if len(c.Jobs) == 0 {
-		return fmt.Errorf("no jobs defined")
+func validate(cfg *Config) error {
+	if len(cfg.Jobs) == 0 {
+		return errors.New("config must define at least one job")
 	}
-	seen := make(map[string]bool)
-	for _, j := range c.Jobs {
-		if j.Name == "" {
-			return fmt.Errorf("job missing name")
+
+	seen := make(map[string]struct{}, len(cfg.Jobs))
+	for i, job := range cfg.Jobs {
+		if job.Name == "" {
+			return fmt.Errorf("job[%d]: name is required", i)
 		}
-		if j.Schedule == "" {
-			return fmt.Errorf("job %q missing schedule", j.Name)
+		if job.Schedule == "" {
+			return fmt.Errorf("job %q: schedule is required", job.Name)
 		}
-		if seen[j.Name] {
-			return fmt.Errorf("duplicate job name %q", j.Name)
+		if _, dup := seen[job.Name]; dup {
+			return fmt.Errorf("duplicate job name: %q", job.Name)
 		}
-		seen[j.Name] = true
+		seen[job.Name] = struct{}{}
 	}
 	return nil
 }
