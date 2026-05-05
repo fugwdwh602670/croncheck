@@ -1,20 +1,9 @@
-// Package store provides an in-memory, thread-safe store for tracking
-// the execution state of monitored cron jobs.
+// Package store provides an in-memory thread-safe store for tracking
+// cron job heartbeats and missed-run state.
 //
-// Each job is identified by its name (as defined in the croncheck config).
-// The store records the last heartbeat time, the number of consecutive missed
-// runs, and whether an alert has already been sent for the current missed window.
+// Each job entry records the last time a heartbeat was received,
+// how many consecutive missed runs have occurred, and whether the
+// job is currently considered healthy.
 //
-// Typical usage:
-//
-//	s := store.New()
-//
-//	// When a heartbeat arrives for a job:
-//	s.RecordHeartbeat(jobName)
-//
-//	// When the scheduler detects a missed run:
-//	s.IncrementMissed(jobName)
-//
-//	// To inspect current state:
-//	status, ok := s.Get(jobName)
+// The store is safe for concurrent use by multiple goroutines.
 package store
