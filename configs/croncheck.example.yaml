@@ -1,0 +1,32 @@
+# croncheck example configuration
+
+# Address for the HTTP check-in API to listen on
+listen_addr: ":8080"
+
+# Log verbosity: debug | info | warn | error
+log_level: info
+
+# Global alert defaults (can be overridden per job)
+alert:
+  email: "ops@example.com"
+  webhook: "https://hooks.example.com/alerts"
+
+jobs:
+  # Daily database backup — must complete by 02:10
+  - name: db-backup
+    schedule: "0 2 * * *"   # cron expression (UTC)
+    grace: 10m               # how long after expected start before alerting
+    alert:
+      email: "dba@example.com"
+
+  # Hourly cache warm-up
+  - name: cache-warmup
+    schedule: "0 * * * *"
+    grace: 5m
+
+  # Weekly report generation every Monday at 06:00
+  - name: weekly-report
+    schedule: "0 6 * * 1"
+    grace: 15m
+    alert:
+      webhook: "https://hooks.example.com/reports"
