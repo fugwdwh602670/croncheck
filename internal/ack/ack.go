@@ -1,5 +1,5 @@
 // Package ack provides acknowledgement tracking for missed cron job alerts.
-// An acknowledged job suppresses repeat alerts until the next missed run.
+// An acknowledged job will suppress further alerts until the ack expires.
 package ack
 
 import (
@@ -7,63 +7,63 @@ import (
 	"time"
 )
 
-// Acknowledgement records when a job alert was acknowledged and by whom.
-type Acknowledgement struct {
-	Job       string    `json:"job"`
-	AckedAt   time.Time `json:"acked_at"`
-	AckedBy   string    `json:"acked_by"`
+// Ack represents an active acknowledgement for a job.
+type Ack struct {
+	JobName   string    `json:"job_name"`
 	ExpiresAt time.Time `json:"expires_at"`
+	Reason    string    `json:"reason,omitempty"`
 }
 
-// Store holds acknowledgements for jobs.
+// Store holds active acknowledgements.
 type Store struct {
 	mu   sync.RWMutex
-	acks map[string]Acknowledgement
+	acks map[string]Ack
+	now  func() time.Time
 }
 
-// New returns an initialised acknowledgement Store.
+// New creates a new ack Store.
 func New() *Store {
-	return &Store{acks: make(map[string]Acknowledgement)}
-}
-
-// Acknowledge records an acknowledgement for the given job, valid for duration d.
-// ackedBy is a free-form string identifying who acknowledged the alert.
-func (s *Store) Acknowledge(job, ackedBy string, d time.Duration) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now()
-	s.acks[job] = Acknowledgement{
-		Job:       job,
-		AckedAt:   now,
-		AckedBy:   ackedBy,
-		ExpiresAt: now.Add(d),
+	return &Store{
+		acks: make(map[string]Ack),
+		now:  time.Now,
 	}
 }
 
-// IsAcknowledged reports whether the job currently has an active acknowledgement.
-func (s *Store) IsAcknowledged(job string) bool {
+// Add records an acknowledgement for the given job lasting duration d.
+func (s *Store) Add(jobName, reason string, d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.acks[jobName] = Ack{
+		JobName:   jobName,
+		ExpiresAt: s.now().Add(d),
+		Reason:    reason,
+	}
+}
+
+// IsAcked reports whether the job currently has an active acknowledgement.
+func (s *Store) IsAcked(jobName string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	a, ok := s.acks[job]
+	a, ok := s.acks[jobName]
 	if !ok {
 		return false
 	}
-	return time.Now().Before(a.ExpiresAt)
+	return s.now().Before(a.ExpiresAt)
 }
 
-// Remove deletes the acknowledgement for the given job.
-func (s *Store) Remove(job string) {
+// Remove deletes an acknowledgement for the given job.
+func (s *Store) Remove(jobName string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.acks, job)
+	delete(s.acks, jobName)
 }
 
-// All returns a snapshot of all currently active acknowledgements.
-func (s *Store) All() []Acknowledgement {
+// All returns a snapshot of currently active acknowledgements.
+func (s *Store) All() []Ack {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	now := time.Now()
-	out := make([]Acknowledgement, 0, len(s.acks))
+	now := s.now()
+	out := make([]Ack, 0, len(s.acks))
 	for _, a := range s.acks {
 		if now.Before(a.ExpiresAt) {
 			out = append(out, a)

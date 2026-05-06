@@ -3,21 +3,16 @@ package ack
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 )
 
 type addRequest struct {
-	Job      string `json:"job"`
-	AckedBy  string `json:"acked_by"`
+	JobName  string `json:"job_name"`
 	Duration string `json:"duration"`
+	Reason   string `json:"reason,omitempty"`
 }
 
-// HTTPHandler returns an http.Handler for the acknowledgement API.
-//
-//	GET  /acks          – list active acknowledgements
-//	POST /acks          – add an acknowledgement
-//	DELETE /acks/{job}  – remove an acknowledgement
+// HTTPHandler returns an http.Handler for managing acknowledgements.
 func HTTPHandler(s *Store) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -35,7 +30,11 @@ func HTTPHandler(s *Store) http.Handler {
 
 func listAcks(w http.ResponseWriter, s *Store) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(s.All())
+	all := s.All()
+	if all == nil {
+		all = []Ack{}
+	}
+	_ = json.NewEncoder(w).Encode(all)
 }
 
 func addAck(w http.ResponseWriter, r *http.Request, s *Store) {
@@ -44,8 +43,8 @@ func addAck(w http.ResponseWriter, r *http.Request, s *Store) {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if req.Job == "" {
-		http.Error(w, "job is required", http.StatusBadRequest)
+	if req.JobName == "" {
+		http.Error(w, "job_name is required", http.StatusBadRequest)
 		return
 	}
 	d, err := time.ParseDuration(req.Duration)
@@ -53,14 +52,14 @@ func addAck(w http.ResponseWriter, r *http.Request, s *Store) {
 		http.Error(w, "invalid duration", http.StatusBadRequest)
 		return
 	}
-	s.Acknowledge(req.Job, req.AckedBy, d)
+	s.Add(req.JobName, req.Reason, d)
 	w.WriteHeader(http.StatusCreated)
 }
 
 func removeAck(w http.ResponseWriter, r *http.Request, s *Store) {
-	job := strings.TrimPrefix(r.URL.Path, "/acks/")
+	job := r.URL.Query().Get("job")
 	if job == "" {
-		http.Error(w, "job is required", http.StatusBadRequest)
+		http.Error(w, "job query param required", http.StatusBadRequest)
 		return
 	}
 	s.Remove(job)
