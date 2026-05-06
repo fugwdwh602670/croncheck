@@ -80,6 +80,14 @@ func TestAll_ReturnsSnapshot(t *testing.T) {
 	}
 }
 
+func TestAll_EmptyStore(t *testing.T) {
+	s := New()
+	all := s.All()
+	if len(all) != 0 {
+		t.Errorf("expected 0 jobs for empty store, got %d", len(all))
+	}
+}
+
 func TestIncrementMissed_UnknownJob(t *testing.T) {
 	s := New()
 	// Should not panic for unknown job
