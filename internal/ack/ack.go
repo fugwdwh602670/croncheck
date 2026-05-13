@@ -71,3 +71,17 @@ func (s *Store) All() []Ack {
 	}
 	return out
 }
+
+// Purge removes all expired acknowledgements from the store.
+// It is safe to call concurrently and can be invoked periodically to
+// prevent unbounded growth when jobs are acknowledged and never removed.
+func (s *Store) Purge() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now()
+	for jobName, a := range s.acks {
+		if !now.Before(a.ExpiresAt) {
+			delete(s.acks, jobName)
+		}
+	}
+}
