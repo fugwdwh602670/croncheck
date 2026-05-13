@@ -41,6 +41,13 @@ func TestSet_NegativeThresholdReturnsError(t *testing.T) {
 	}
 }
 
+func TestSet_ZeroThresholdReturnsError(t *testing.T) {
+	s := New()
+	if err := s.Set("backup", 0); err == nil {
+		t.Fatal("expected error for zero threshold")
+	}
+}
+
 func TestRemove_ClearsEntry(t *testing.T) {
 	s := New()
 	_ = s.Set("backup", time.Minute)
