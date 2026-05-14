@@ -81,6 +81,15 @@ func TestReset_AllowsImmediately(t *testing.T) {
 	}
 }
 
+func TestReset_UnknownJobIsNoop(t *testing.T) {
+	s := makeStore(t, 1, time.Minute)
+	// Resetting a job that has never been seen should not panic or error.
+	s.Reset("nonexistent")
+	if s.Get("nonexistent") != nil {
+		t.Fatal("expected nil after resetting unknown job")
+	}
+}
+
 func TestAll_ReturnsSnapshot(t *testing.T) {
 	s := makeStore(t, 5, time.Minute)
 	s.Allow("a")
