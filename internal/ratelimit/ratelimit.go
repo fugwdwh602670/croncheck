@@ -55,3 +55,11 @@ func (l *Limiter) LastAlert(job string) (time.Time, bool) {
 	t, ok := l.last[job]
 	return t, ok
 }
+
+// ResetAll clears the rate-limit state for all jobs, allowing the next
+// alert for every job to be sent immediately regardless of the cooldown.
+func (l *Limiter) ResetAll() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.last = make(map[string]time.Time)
+}
